@@ -314,6 +314,25 @@ func prepareStateV4(sV4 *stateV4) (*File, tfdiags.Diagnostics) {
 	return file, diags
 }
 
+func approximateNumResources(file *File) int {
+	numResources := 0
+	for _, ms := range file.State.Modules {
+		numResources += len(ms.Resources)
+	}
+	return numResources
+}
+
+func numInstances(rs *states.Resource) int {
+	numInstances := 0
+	for _, is := range rs.Instances {
+		if is.HasCurrent() {
+			numInstances++
+		}
+		numInstances += len(is.Deposed)
+	}
+	return numInstances
+}
+
 func writeStateV4(file *File, w io.Writer, enc encryption.StateEncryption) tfdiags.Diagnostics {
 	// Here we'll convert back from the "File" representation to our
 	// stateV4 struct representation and write that.
@@ -338,7 +357,7 @@ func writeStateV4(file *File, w io.Writer, enc encryption.StateEncryption) tfdia
 		Serial:           file.Serial,
 		Lineage:          file.Lineage,
 		RootOutputs:      map[string]outputStateV4{},
-		Resources:        []resourceStateV4{},
+		Resources:        make([]resourceStateV4, 0, approximateNumResources(file)),
 	}
 
 	for name, os := range file.State.RootModule().OutputValues {
@@ -395,7 +414,7 @@ func writeStateV4(file *File, w io.Writer, enc encryption.StateEncryption) tfdia
 				Type:           resourceAddr.Type,
 				Name:           resourceAddr.Name,
 				ProviderConfig: rs.ProviderConfig.String(),
-				Instances:      []instanceObjectStateV4{},
+				Instances:      make([]instanceObjectStateV4, 0, numInstances(rs)),
 			})
 			rsV4 := &(sV4.Resources[len(sV4.Resources)-1])
 
